@@ -11,6 +11,9 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
+# Optional local API testing files
+postman/
+
 # Keep environment variables out of version control
 .env*
 
