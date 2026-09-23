@@ -13,6 +13,7 @@ import { AuditModule } from './shared/audit/audit.module';
 import { HealthModule } from './shared/health/health.module';
 import { MailModule } from './shared/mail/mail.module';
 import { SmsModule } from './shared/sms/sms.module';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SmsModule } from './shared/sms/sms.module';
     ]),
     AuthModule,
     AdminModule,
+    JobsModule,
   ],
   providers: [
     {
