@@ -11,7 +11,8 @@ class AuthProvider extends ChangeNotifier {
   UserEntity? _currentUser;
   String? _errorMessage;
   String? _pendingPhone;
-  bool _isLoading = false;
+  bool _isSubmitting = false;
+  bool _isCheckingAuth = false;
 
   AuthProvider({required this.authRepository});
 
@@ -19,10 +20,11 @@ class AuthProvider extends ChangeNotifier {
   UserEntity? get currentUser => _currentUser;
   String? get errorMessage => _errorMessage;
   String? get pendingPhone => _pendingPhone;
-  bool get isLoading => _isLoading;
+  bool get isLoading => _isSubmitting;
+  bool get isCheckingAuth => _isCheckingAuth;
 
-  void _setLoading(bool value) {
-    _isLoading = value;
+  void _setSubmitting(bool value) {
+    _isSubmitting = value;
     notifyListeners();
   }
 
@@ -32,7 +34,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> checkAuthStatus() async {
-    _setLoading(true);
+    _isCheckingAuth = true;
+    notifyListeners();
     try {
       final user = await authRepository.getCurrentUser();
       _currentUser = user;
@@ -41,7 +44,8 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.unauthenticated;
       _currentUser = null;
     } finally {
-      _setLoading(false);
+      _isCheckingAuth = false;
+      notifyListeners();
     }
   }
 
@@ -50,7 +54,7 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String role,
   }) async {
-    _setLoading(true);
+    _setSubmitting(true);
     _setError(null);
     try {
       final user = await authRepository.login(
@@ -60,11 +64,11 @@ class AuthProvider extends ChangeNotifier {
       );
       _currentUser = user;
       _status = user.phoneVerified ? AuthStatus.authenticated : AuthStatus.pendingVerification;
-      _setLoading(false);
+      _setSubmitting(false);
       return true;
     } catch (e) {
       _setError(e.toString());
-      _setLoading(false);
+      _setSubmitting(false);
       return false;
     }
   }
@@ -76,7 +80,7 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String role,
   }) async {
-    _setLoading(true);
+    _setSubmitting(true);
     _setError(null);
     try {
       final data = await authRepository.register(
@@ -88,27 +92,27 @@ class AuthProvider extends ChangeNotifier {
       );
       _pendingPhone = data['phone'] as String? ?? phone;
       _status = AuthStatus.pendingVerification;
-      _setLoading(false);
+      _setSubmitting(false);
       return true;
     } catch (e) {
       _setError(e.toString());
-      _setLoading(false);
+      _setSubmitting(false);
       return false;
     }
   }
 
   Future<bool> verifyPhone({required String phone, required String code}) async {
-    _setLoading(true);
+    _setSubmitting(true);
     _setError(null);
     try {
       final user = await authRepository.verifyPhone(phone: phone, code: code);
       _currentUser = user;
       _status = AuthStatus.authenticated;
-      _setLoading(false);
+      _setSubmitting(false);
       return true;
     } catch (e) {
       _setError(e.toString());
-      _setLoading(false);
+      _setSubmitting(false);
       return false;
     }
   }
@@ -125,13 +129,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    _setLoading(true);
+    _setSubmitting(true);
     try {
       await authRepository.logout();
     } finally {
       _status = AuthStatus.unauthenticated;
       _currentUser = null;
-      _setLoading(false);
+      _setSubmitting(false);
     }
   }
 }

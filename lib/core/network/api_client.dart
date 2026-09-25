@@ -25,6 +25,18 @@ class ApiClient {
         );
 
     dio.interceptors.add(
+      LogInterceptor(
+        request: true,
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: false,
+        responseBody: true,
+        error: true,
+        logPrint: (obj) => print('[API] $obj'),
+      ),
+    );
+
+    dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final accessToken = await secureStorageService.getAccessToken();
