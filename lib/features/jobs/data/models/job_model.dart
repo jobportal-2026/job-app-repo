@@ -9,6 +9,8 @@ class JobModel {
   final String category;
   final String status;
   final String employerId;
+  final String duration;
+  final String distance;
   final DateTime createdAt;
   final bool isSaved;
   final bool hasApplied;
@@ -25,6 +27,8 @@ class JobModel {
     required this.status,
     required this.employerId,
     required this.createdAt,
+    this.duration = 'Part-time / Flexible',
+    this.distance = '3.5 km away',
     this.isSaved = false,
     this.hasApplied = false,
   });
@@ -45,12 +49,14 @@ class JobModel {
       title: _parseString(json['title'] ?? json['name'], 'Untitled Job'),
       companyName: _parseString(json['companyName'] ?? json['company'], 'Company'),
       description: _parseString(json['description'], ''),
-      location: _parseString(json['location'], 'Remote'),
-      salaryRange: _parseString(json['salaryRange'] ?? json['salary'], 'Competitive'),
-      jobType: _parseString(json['jobType'] ?? json['type'], 'Full-time'),
+      location: _parseString(json['location'], 'Downtown, Tech Hub'),
+      salaryRange: _parseString(json['salaryRange'] ?? json['salary'], '₹400 / hr'),
+      jobType: _parseString(json['jobType'] ?? json['type'], 'Flexible'),
       category: _parseString(json['category'], 'General'),
       status: _parseString(json['status'], 'ACTIVE'),
       employerId: _parseString(json['employerId'] ?? json['companyId'], ''),
+      duration: _parseString(json['duration'], '4 hrs/day • Weekends'),
+      distance: _parseString(json['distance'], '2.8 km away'),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -71,6 +77,8 @@ class JobModel {
       'category': category,
       'status': status,
       'employerId': employerId,
+      'duration': duration,
+      'distance': distance,
       'createdAt': createdAt.toIso8601String(),
       'isSaved': isSaved,
       'hasApplied': hasApplied,
@@ -88,6 +96,8 @@ class JobModel {
     String? category,
     String? status,
     String? employerId,
+    String? duration,
+    String? distance,
     DateTime? createdAt,
     bool? isSaved,
     bool? hasApplied,
@@ -103,6 +113,8 @@ class JobModel {
       category: category ?? this.category,
       status: status ?? this.status,
       employerId: employerId ?? this.employerId,
+      duration: duration ?? this.duration,
+      distance: distance ?? this.distance,
       createdAt: createdAt ?? this.createdAt,
       isSaved: isSaved ?? this.isSaved,
       hasApplied: hasApplied ?? this.hasApplied,

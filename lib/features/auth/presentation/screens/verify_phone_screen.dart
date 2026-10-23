@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -17,11 +18,78 @@ class VerifyPhoneScreen extends StatefulWidget {
 
 class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
   final _codeController = TextEditingController();
+  Timer? _resendTimer;
+  int _secondsRemaining = 60;
+  bool _canResend = false;
+  bool _otpInitiated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_otpInitiated) {
+        _otpInitiated = true;
+        _initOtpFlow();
+      }
+    });
+  }
 
   @override
   void dispose() {
     _codeController.dispose();
+    _resendTimer?.cancel();
     super.dispose();
+  }
+
+  String _getTargetPhone() {
+    final authProvider = context.read<AuthProvider>();
+    String target = widget.phone.trim();
+    if (target.isEmpty) {
+      target = (authProvider.pendingPhone ?? authProvider.currentUser?.phone ?? '').trim();
+    }
+    if (target.isNotEmpty && !target.startsWith('+')) {
+      target = '+$target';
+    }
+    return target;
+  }
+
+  void _startResendTimer() {
+    setState(() {
+      _secondsRemaining = 60;
+      _canResend = false;
+    });
+    _resendTimer?.cancel();
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 0) {
+        setState(() => _secondsRemaining--);
+      } else {
+        setState(() => _canResend = true);
+        timer.cancel();
+      }
+    });
+  }
+
+  void _initOtpFlow() {
+    final targetPhone = _getTargetPhone();
+    if (targetPhone.isNotEmpty) {
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isOtpSending) return;
+      _startResendTimer();
+      authProvider.sendFirebaseOtp(
+        phone: targetPhone,
+        onAutoVerifiedSuccess: () {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Phone verified automatically!'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            context.go('/');
+          }
+        },
+      );
+    }
   }
 
   void _onVerify() async {
@@ -29,25 +97,13 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
     if (code.isEmpty) return;
 
     final authProvider = context.read<AuthProvider>();
-    String targetPhone = widget.phone.trim();
-    if (targetPhone.isEmpty) {
-      targetPhone =
-          (authProvider.pendingPhone ?? authProvider.currentUser?.phone ?? '')
-              .trim();
-    }
-    if (targetPhone.isNotEmpty && !targetPhone.startsWith('+')) {
-      targetPhone = '+$targetPhone';
-    }
+    final targetPhone = _getTargetPhone();
 
     debugPrint('Verify button tapped, phone: $targetPhone, code: $code');
 
-    final success = await authProvider.verifyPhone(
+    final success = await authProvider.verifyFirebaseOtp(
       phone: targetPhone,
-      code: code,
-    );
-
-    debugPrint(
-      'Verify result success: $success, error: ${authProvider.errorMessage}',
+      smsCode: code,
     );
 
     if (mounted) {
@@ -71,28 +127,32 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
   }
 
   void _onResendOtp() async {
+    if (!_canResend) return;
     final authProvider = context.read<AuthProvider>();
-    String targetPhone = widget.phone.trim();
-    if (targetPhone.isEmpty) {
-      targetPhone =
-          (authProvider.pendingPhone ?? authProvider.currentUser?.phone ?? '')
-              .trim();
-    }
-    if (targetPhone.isNotEmpty && !targetPhone.startsWith('+')) {
-      targetPhone = '+$targetPhone';
-    }
+    final targetPhone = _getTargetPhone();
+    if (targetPhone.isEmpty) return;
 
-    final success = await authProvider.resendOtp(phone: targetPhone);
+    _startResendTimer();
+    await authProvider.sendFirebaseOtp(
+      phone: targetPhone,
+      onAutoVerifiedSuccess: () {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone verified automatically!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          context.go('/');
+        }
+      },
+    );
 
-    if (mounted) {
+    if (mounted && authProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            success
-                ? 'OTP resend request sent'
-                : (authProvider.errorMessage ?? 'Failed to resend OTP'),
-          ),
-          backgroundColor: success ? AppColors.success : AppColors.error,
+          content: Text(authProvider.errorMessage!),
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -101,6 +161,7 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final targetPhone = _getTargetPhone();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Verify Phone')),
@@ -119,30 +180,63 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'We sent a verification code to ${widget.phone}',
+                targetPhone.isNotEmpty
+                    ? 'We sent a verification code to $targetPhone'
+                    : 'Enter the verification code sent to your phone',
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
-              if (widget.phone.isEmpty)
-                CustomTextField(
-                  controller: TextEditingController(
-                    text: authProvider.pendingPhone,
+              if (authProvider.isOtpSending)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  label: 'Phone Number',
-                  hint: '+14155552671',
-                  keyboardType: TextInputType.phone,
-                  prefixIcon: const Icon(
-                    Icons.phone_outlined,
-                    color: AppColors.textMuted,
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Sending real-time SMS code...',
+                        style: TextStyle(fontSize: 13, color: AppColors.primary),
+                      ),
+                    ],
                   ),
                 ),
-              if (widget.phone.isEmpty) const SizedBox(height: 16),
+
+              if (authProvider.isOtpSent && authProvider.otpSentMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: AppColors.success, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          authProvider.otpSentMessage!,
+                          style: const TextStyle(fontSize: 13, color: AppColors.success),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               CustomTextField(
                 controller: _codeController,
                 label: 'OTP Code',
-                hint: '482913',
+                hint: '123456',
                 keyboardType: TextInputType.number,
                 prefixIcon: const Icon(
                   Icons.security,
@@ -152,15 +246,22 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
               const SizedBox(height: 24),
 
               PrimaryButton(
-                text: 'Verify',
+                text: 'Verify OTP',
                 isLoading: authProvider.isLoading,
                 onPressed: _onVerify,
               ),
               const SizedBox(height: 16),
 
               TextButton(
-                onPressed: _onResendOtp,
-                child: const Text('Resend Code'),
+                onPressed: _canResend && !authProvider.isOtpSending ? _onResendOtp : null,
+                child: Text(
+                  _canResend
+                      ? 'Resend SMS Code'
+                      : 'Resend Code in ${_secondsRemaining}s',
+                  style: TextStyle(
+                    color: _canResend ? AppColors.primary : AppColors.textMuted,
+                  ),
+                ),
               ),
             ],
           ),

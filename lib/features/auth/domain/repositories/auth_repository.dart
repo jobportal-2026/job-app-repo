@@ -11,7 +11,8 @@ abstract class AuthRepository {
 
   Future<UserEntity> verifyPhone({
     required String phone,
-    required String code,
+    String? code,
+    String? firebaseToken,
   });
 
   Future<void> resendOtp({

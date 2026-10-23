@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import '../config/env_config.dart';
 import 'api_exceptions.dart';
 import 'api_response.dart';
@@ -32,7 +33,7 @@ class ApiClient {
         responseHeader: false,
         responseBody: true,
         error: true,
-        logPrint: (obj) => print('[API] $obj'),
+        logPrint: (obj) => debugPrint('[API] $obj'),
       ),
     );
 

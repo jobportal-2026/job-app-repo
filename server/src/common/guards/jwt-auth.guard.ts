@@ -16,22 +16,28 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
+    return super.canActivate(context);
+  }
+
+  handleRequest<T>(
+    err: Error | null,
+    user: T,
+    _info: unknown,
+    context: ExecutionContext,
+  ): T {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
     if (isPublic) {
-      return true;
+      return (user ?? undefined) as T;
     }
 
-    return super.canActivate(context);
-  }
-
-  handleRequest<T>(err: Error | null, user: T): T {
     if (err || !user) {
       throw err || new UnauthorizedException('Unauthorized');
     }
     return user;
   }
 }
+

@@ -1,3 +1,4 @@
+import '../../../../core/network/api_exceptions.dart';
 import '../../../../core/network/secure_storage_service.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -33,10 +34,18 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<UserEntity> verifyPhone({
     required String phone,
-    required String code,
+    String? code,
+    String? firebaseToken,
   }) async {
-    final userModel = await remoteDataSource.verifyPhone(phone: phone, code: code);
-    await secureStorageService.saveUserMetadata(userId: userModel.id, role: userModel.role);
+    final userModel = await remoteDataSource.verifyPhone(
+      phone: phone,
+      code: code,
+      firebaseToken: firebaseToken,
+    );
+    await secureStorageService.saveUserMetadata(
+      userId: userModel.id,
+      role: userModel.role,
+    );
     return userModel;
   }
 
@@ -70,7 +79,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
     if (userJson != null) {
       final user = UserModel.fromJson(userJson);
-      await secureStorageService.saveUserMetadata(userId: user.id, role: user.role);
+      await secureStorageService.saveUserMetadata(
+        userId: user.id,
+        role: user.role,
+      );
       return user;
     }
 
@@ -79,6 +91,12 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<UserEntity> getCurrentUser() async {
+    final token = await secureStorageService.getAccessToken();
+    final refreshToken = await secureStorageService.getRefreshToken();
+    if ((token == null || token.isEmpty) &&
+        (refreshToken == null || refreshToken.isEmpty)) {
+      throw UnauthorizedException('No active session found');
+    }
     return await remoteDataSource.getCurrentUser();
   }
 

@@ -16,6 +16,8 @@ import { TokenService } from './services/token.service';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
+import { FirebaseAdminService } from './services/firebase-admin.service';
+
 function buildGoogleProviders(): Provider[] {
   return [
     {
@@ -45,6 +47,7 @@ function buildGoogleProviders(): Provider[] {
     OtpService,
     TokenService,
     GoogleAuthService,
+    FirebaseAdminService,
     GoogleOAuthConfigGuard,
     UsersRepository,
     OtpRepository,
@@ -54,6 +57,6 @@ function buildGoogleProviders(): Provider[] {
     JwtStrategy,
     ...buildGoogleProviders(),
   ],
-  exports: [AuthService, UsersRepository],
+  exports: [AuthService, UsersRepository, FirebaseAdminService],
 })
 export class AuthModule {}

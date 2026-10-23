@@ -25,15 +25,19 @@ export class JobsController {
     @Query('category') category?: string,
     @Query('jobType') jobType?: string,
     @Query('location') location?: string,
+    @CurrentUser('id') userId?: string,
   ) {
-    return this.jobsService.findAll(query, category, jobType, location);
+    return this.jobsService.findAll(query, category, jobType, location, userId);
   }
 
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get single job details' })
-  async getJobById(@Param('id') id: string) {
-    return this.jobsService.findOne(id);
+  async getJobById(
+    @Param('id') id: string,
+    @CurrentUser('id') userId?: string,
+  ) {
+    return this.jobsService.findOne(id, userId);
   }
 
   @Post()

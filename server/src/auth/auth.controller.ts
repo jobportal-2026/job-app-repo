@@ -51,7 +51,7 @@ export class AuthController {
   @Post('verify-phone')
   @ApiOperation({ summary: 'Verify phone OTP after registration' })
   verifyPhone(@Body() dto: VerifyPhoneDto) {
-    return this.authService.verifyPhone(dto.phone, dto.code);
+    return this.authService.verifyPhone(dto.phone, dto.code, dto.firebaseToken);
   }
 
   @Public()
