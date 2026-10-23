@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
 
 export class VerifyPhoneDto {
   @ApiProperty({ example: '+14155552671' })
@@ -7,8 +7,14 @@ export class VerifyPhoneDto {
   @Matches(/^\+[1-9]\d{6,14}$/)
   phone!: string;
 
-  @ApiProperty({ example: '123456' })
+  @ApiProperty({ example: '123456', required: false })
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
+
+  @ApiProperty({ example: 'firebase-id-token...', required: false })
+  @IsString()
+  @IsOptional()
+  firebaseToken?: string;
 }
+

@@ -19,6 +19,7 @@ import { RevokedTokenRepository } from './repositories/revoked-token.repository'
 import { UsersRepository } from './repositories/users.repository';
 import { OtpService } from './services/otp.service';
 import { TokenService } from './services/token.service';
+import { FirebaseAdminService } from './services/firebase-admin.service';
 
 @Injectable()
 export class AuthService {
@@ -28,11 +29,12 @@ export class AuthService {
     private readonly revokedTokenRepository: RevokedTokenRepository,
     private readonly otpService: OtpService,
     private readonly tokenService: TokenService,
+    private readonly firebaseAdminService: FirebaseAdminService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async register(dto: RegisterDto) {
     const phone = dto.phone;
@@ -78,13 +80,31 @@ export class AuthService {
     };
   }
 
-  async verifyPhone(phone: string, code: string) {
+  async verifyPhone(phone: string, code?: string, firebaseToken?: string) {
     const user = await this.usersRepository.findByPhone(phone);
     if (!user) {
       throw new BusinessException('User not found', HttpStatus.NOT_FOUND);
     }
 
-    await this.otpService.verifyRegistrationOtp(phone, code);
+    if (firebaseToken) {
+      const verified = await this.firebaseAdminService.verifyPhoneToken(
+        firebaseToken,
+        phone,
+      );
+      if (!verified) {
+        throw new BusinessException(
+          'Invalid or expired Firebase verification token',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } else if (code) {
+      await this.otpService.verifyRegistrationOtp(phone, code);
+    } else {
+      throw new BusinessException(
+        'Either OTP code or Firebase token is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     const updated = await this.usersRepository.update(user.id, {
       phoneVerified: true,

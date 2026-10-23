@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../data/datasources/firebase_phone_auth_service.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 
@@ -6,6 +8,7 @@ enum AuthStatus { unauthenticated, authenticating, authenticated, pendingVerific
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository authRepository;
+  final FirebasePhoneAuthService firebasePhoneAuthService;
 
   AuthStatus _status = AuthStatus.unauthenticated;
   UserEntity? _currentUser;
@@ -13,8 +16,17 @@ class AuthProvider extends ChangeNotifier {
   String? _pendingPhone;
   bool _isSubmitting = false;
   bool _isCheckingAuth = false;
+  Future<void>? _authCheckFuture;
 
-  AuthProvider({required this.authRepository});
+  // Firebase OTP specific states
+  bool _isOtpSending = false;
+  bool _isOtpSent = false;
+  String? _otpSentMessage;
+
+  AuthProvider({
+    required this.authRepository,
+    FirebasePhoneAuthService? firebasePhoneAuthService,
+  }) : firebasePhoneAuthService = firebasePhoneAuthService ?? FirebasePhoneAuthService();
 
   AuthStatus get status => _status;
   UserEntity? get currentUser => _currentUser;
@@ -22,6 +34,10 @@ class AuthProvider extends ChangeNotifier {
   String? get pendingPhone => _pendingPhone;
   bool get isLoading => _isSubmitting;
   bool get isCheckingAuth => _isCheckingAuth;
+  Future<void>? get authCheckFuture => _authCheckFuture;
+  bool get isOtpSending => _isOtpSending;
+  bool get isOtpSent => _isOtpSent;
+  String? get otpSentMessage => _otpSentMessage;
 
   void _setSubmitting(bool value) {
     _isSubmitting = value;
@@ -33,8 +49,19 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> checkAuthStatus() async {
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> checkAuthStatus() {
+    _authCheckFuture = _performAuthCheck();
+    return _authCheckFuture!;
+  }
+
+  Future<void> _performAuthCheck() async {
     _isCheckingAuth = true;
+    _status = AuthStatus.authenticating;
     notifyListeners();
     try {
       final user = await authRepository.getCurrentUser();
@@ -101,11 +128,114 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> verifyPhone({required String phone, required String code}) async {
+  /// Send real-time OTP SMS via Firebase
+  Future<void> sendFirebaseOtp({
+    required String phone,
+    void Function()? onAutoVerifiedSuccess,
+  }) async {
+    _isOtpSending = true;
+    _errorMessage = null;
+    _otpSentMessage = null;
+    notifyListeners();
+
+    await firebasePhoneAuthService.sendOtp(
+      phone: phone,
+      onCodeSent: (verificationId) {
+        _isOtpSending = false;
+        _isOtpSent = true;
+        _otpSentMessage = 'Verification code sent to $phone';
+        notifyListeners();
+      },
+      onError: (error) {
+        _isOtpSending = false;
+        _errorMessage = error;
+        notifyListeners();
+      },
+      onAutoVerified: (credential) async {
+        debugPrint('[AuthProvider] Auto verified on Android device');
+        try {
+          final idToken = await firebasePhoneAuthService.signInWithCredential(credential);
+          if (idToken != null) {
+            await verifyPhoneWithFirebaseToken(phone: phone, firebaseToken: idToken);
+            if (onAutoVerifiedSuccess != null) {
+              onAutoVerifiedSuccess();
+            }
+          }
+        } catch (e) {
+          _setError(e.toString());
+        }
+      },
+    );
+  }
+
+  /// Verify entered SMS OTP code via Firebase, with graceful backend OTP fallback
+  Future<bool> verifyFirebaseOtp({
+    required String phone,
+    required String smsCode,
+  }) async {
     _setSubmitting(true);
     _setError(null);
     try {
-      final user = await authRepository.verifyPhone(phone: phone, code: code);
+      String? idToken;
+      try {
+        idToken = await firebasePhoneAuthService.verifySmsCode(smsCode);
+      } catch (fbErr) {
+        debugPrint('[AuthProvider] Firebase verify fallback: $fbErr');
+      }
+
+      final user = await authRepository.verifyPhone(
+        phone: phone,
+        code: smsCode,
+        firebaseToken: idToken,
+      );
+
+      _currentUser = user;
+      _status = AuthStatus.authenticated;
+      _setSubmitting(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setSubmitting(false);
+      return false;
+    }
+  }
+
+  /// Verify using Firebase Token directly (e.g. from auto-retrieval)
+  Future<bool> verifyPhoneWithFirebaseToken({
+    required String phone,
+    required String firebaseToken,
+  }) async {
+    _setSubmitting(true);
+    _setError(null);
+    try {
+      final user = await authRepository.verifyPhone(
+        phone: phone,
+        firebaseToken: firebaseToken,
+      );
+      _currentUser = user;
+      _status = AuthStatus.authenticated;
+      _setSubmitting(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setSubmitting(false);
+      return false;
+    }
+  }
+
+  Future<bool> verifyPhone({
+    required String phone,
+    String? code,
+    String? firebaseToken,
+  }) async {
+    _setSubmitting(true);
+    _setError(null);
+    try {
+      final user = await authRepository.verifyPhone(
+        phone: phone,
+        code: code,
+        firebaseToken: firebaseToken,
+      );
       _currentUser = user;
       _status = AuthStatus.authenticated;
       _setSubmitting(false);
@@ -120,7 +250,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> resendOtp({required String phone}) async {
     _setError(null);
     try {
-      await authRepository.resendOtp(phone: phone);
+      await sendFirebaseOtp(phone: phone);
       return true;
     } catch (e) {
       _setError(e.toString());
@@ -131,6 +261,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _setSubmitting(true);
     try {
+      await FirebaseAuth.instance.signOut();
       await authRepository.logout();
     } finally {
       _status = AuthStatus.unauthenticated;
@@ -139,3 +270,4 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 }
+

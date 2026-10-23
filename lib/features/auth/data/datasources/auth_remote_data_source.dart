@@ -38,14 +38,17 @@ class AuthRemoteDataSource {
 
   Future<UserModel> verifyPhone({
     required String phone,
-    required String code,
+    String? code,
+    String? firebaseToken,
   }) async {
     try {
       final response = await apiClient.dio.post(
         '/auth/verify-phone',
         data: {
           'phone': phone,
-          'code': code,
+          if (code != null && code.isNotEmpty) 'code': code,
+          if (firebaseToken != null && firebaseToken.isNotEmpty)
+            'firebaseToken': firebaseToken,
         },
       );
       final apiResponse = ApiResponse.fromJson(
@@ -60,10 +63,7 @@ class AuthRemoteDataSource {
 
   Future<void> resendOtp({required String phone}) async {
     try {
-      await apiClient.dio.post(
-        '/auth/resend-otp',
-        data: {'phone': phone},
-      );
+      await apiClient.dio.post('/auth/resend-otp', data: {'phone': phone});
     } on DioException catch (e) {
       throw apiClient.handleDioError(e);
     }
@@ -77,11 +77,7 @@ class AuthRemoteDataSource {
     try {
       final response = await apiClient.dio.post(
         '/auth/login',
-        data: {
-          'email': email,
-          'password': password,
-          'role': role,
-        },
+        data: {'email': email, 'password': password, 'role': role},
       );
       final apiResponse = ApiResponse.fromJson(
         response.data,
@@ -116,10 +112,7 @@ class AuthRemoteDataSource {
 
   Future<void> forgotPassword({required String phone}) async {
     try {
-      await apiClient.dio.post(
-        '/auth/forgot-password',
-        data: {'phone': phone},
-      );
+      await apiClient.dio.post('/auth/forgot-password', data: {'phone': phone});
     } on DioException catch (e) {
       throw apiClient.handleDioError(e);
     }
@@ -133,11 +126,7 @@ class AuthRemoteDataSource {
     try {
       await apiClient.dio.post(
         '/auth/reset-password',
-        data: {
-          'phone': phone,
-          'code': code,
-          'newPassword': newPassword,
-        },
+        data: {'phone': phone, 'code': code, 'newPassword': newPassword},
       );
     } on DioException catch (e) {
       throw apiClient.handleDioError(e);

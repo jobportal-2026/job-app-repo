@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/widgets/radius_selector_sheet.dart';
 import '../../../jobs/presentation/providers/jobs_provider.dart';
 import '../../../jobs/presentation/widgets/job_card_widget.dart';
 
@@ -15,14 +15,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
-  final List<String> _categories = ['All', 'Engineering', 'Design', 'Marketing', 'Sales', 'Product'];
+  final List<String> _categories = ['All', 'Hospitality', 'Events', 'Design', 'Tutoring', 'Engineering', 'Retail'];
+  
+  final String _currentLocation = 'Indiranagar, Bengaluru';
+  int _searchRadiusKm = 10;
 
   @override
   void initState() {
     super.initState();
-    debugPrint('HomeScreen loaded/initialized');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      debugPrint('HomeScreen fetching jobs...');
       context.read<JobsProvider>().fetchJobs();
     });
   }
@@ -33,66 +34,94 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  void _showRadiusSelector() {
+    BridgoRadiusSelectorSheet.show(
+      context,
+      currentRadiusKm: _searchRadiusKm,
+      onSelected: (km) {
+        setState(() => _searchRadiusKm = km);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Showing jobs within $km km of $_currentLocation'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
     final jobsProvider = context.watch<JobsProvider>();
-    final user = authProvider.currentUser;
-    final isEmployer = user?.role == 'employer';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bridgo Jobs'),
+        titleSpacing: 16,
+        title: InkWell(
+          onTap: _showRadiusSelector,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.location_on, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      _currentLocation,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColors.primary),
+                  ],
+                ),
+                Text(
+                  'Radius: within $_searchRadiusKm km • Tap to change',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () => context.read<AuthProvider>().logout(),
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () {},
+            tooltip: 'Notifications',
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          debugPrint('HomeScreen reloaded / pull-to-refresh triggered');
           await context.read<JobsProvider>().fetchJobs();
         },
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome back, ${user?.name ?? "User"}!',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isEmployer ? 'Post & manage job openings' : 'Find your dream job',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Search Bar
+                    // Search Bar (1.4 Wireframe)
                     TextField(
                       controller: _searchController,
                       onSubmitted: (val) {
                         context.read<JobsProvider>().setSearchQuery(val.trim());
                       },
                       decoration: InputDecoration(
-                        hintText: 'Search jobs, skills, or companies...',
+                        hintText: 'Search jobs, skills, or roles...',
                         prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                         suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear),
+                                icon: const Icon(Icons.clear, size: 18),
                                 onPressed: () {
                                   _searchController.clear();
                                   context.read<JobsProvider>().setSearchQuery('');
@@ -107,8 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         fillColor: AppColors.surface,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // Categories horizontal scroll
+                    const SizedBox(height: 14),
+
+                    // Categories horizontal list
                     SizedBox(
                       height: 38,
                       child: ListView.separated(
@@ -125,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             labelStyle: TextStyle(
                               color: isSelected ? Colors.white : AppColors.textPrimary,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 12.5,
                             ),
                             backgroundColor: AppColors.surface,
                             onSelected: (_) {
@@ -134,36 +165,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
+
+                    // Section Heading
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Latest Opportunities',
-                          style: TextStyle(
-                            fontSize: 18,
+                        Text(
+                          'Nearby Opportunities (${jobsProvider.jobs.length})',
+                          style: const TextStyle(
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        if (isEmployer)
-                          SizedBox(
-                            height: 38,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.accent,
-                                foregroundColor: Colors.white,
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Post Job'),
-                              onPressed: () => context.push('/create-job'),
+                        InkWell(
+                          onTap: _showRadiusSelector,
+                          child: Text(
+                            '≤ $_searchRadiusKm km',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ],
@@ -184,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 12),
                       Text(
                         jobsProvider.errorMessage ?? 'No jobs found matching your criteria.',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
                       ),
                     ],
                   ),
@@ -206,6 +232,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 24),
+            ),
           ],
         ),
       ),

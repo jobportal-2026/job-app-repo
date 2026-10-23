@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1090168447829",
+    "project_id": "bridgo-b3bdf",
+    "storage_bucket": "bridgo-b3bdf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1090168447829:android:c5c94bfebd1b2ecdc445dc",
+        "android_client_info": {
+          "package_name": "com.example.job_portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAhVZSZUXRahWJ7toTDBR4zv3oHrPJsuMk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
